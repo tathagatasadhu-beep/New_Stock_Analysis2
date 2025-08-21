@@ -33,3 +33,15 @@ def fetch_top50_screener():
         except:
             continue
     return pd.DataFrame(rows).sort_values(by=["Undervalued","PE"], ascending=[False,True])
+
+# --- Analysis Data ---
+def fetch_analysis_data(ticker):
+    if not FINNHUB_API_KEY:
+        return None
+    now = int(time.time())
+    past = now - 365*24*60*60
+    url = f"https://urldefense.com/v3/__https://finnhub.io/api/v1/stock/candle?symbol=*7Bticker*7D&resolution=D&from=*7Bpast*7D&to=*7Bnow*7D&token=*7BFINNHUB_API_KEY*7D__;JSUlJSUlJSU!!Dgr3g5d8opDR!R8s1nwu_OxDljgQympPVdzlkqPr1xleCq42TrGMLnVZbOCd9m_sjNhS6WWOzv52tPCtlVVQnN3FbT75EaEqjWHcdPt4$"
+    r = requests.get(url).json()
+    if r.get("s") != "ok":
+        return None
+    return {"price_data": r}
