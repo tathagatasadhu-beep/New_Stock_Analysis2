@@ -1,48 +1,30 @@
 import os
 import requests
 import pandas as pd
+import time
 
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
+# --- Screener: top undervalued S&P 500 stocks ---
 def fetch_screener_data():
-    if not FINNHUB_API_KEY:
-        return pd.DataFrame()
+    # For simplicity, top few S&P 500 stocks with dummy valuation metrics
+    data = [
+        {"Ticker":"AAPL","PE":28,"PEG":1.5,"RSI":45,"Undervalued":True},
+        {"Ticker":"MSFT","PE":32,"PEG":2.0,"RSI":55,"Undervalued":False},
+        {"Ticker":"GOOGL","PE":25,"PEG":1.2,"RSI":40,"Undervalued":True},
+        {"Ticker":"AMZN","PE":60,"PEG":2.5,"RSI":70,"Undervalued":False},
+        {"Ticker":"NVDA","PE":45,"PEG":2.1,"RSI":60,"Undervalued":False}
+    ]
+    return pd.DataFrame(data)
 
-    url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            return pd.DataFrame(data)[:20]  # Example: top 20
-        else:
-            return pd.DataFrame()
-    except:
-        return pd.DataFrame()
-
+# --- Analysis: fetch historical candles ---
 def fetch_analysis_data(ticker):
     if not FINNHUB_API_KEY:
-        return {}
-
-    try:
-        # Price data
-        price_url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
-        price_data = requests.get(price_url).json()
-
-        # Valuation example (placeholder for DCF or metrics)
-        valuation = {"DCF": "Est. $150", "Current Price": price_data.get("c", "N/A")}
-
-        # Analysis text
-        analysis_text = (
-            f"Stock {ticker} is trading at ${price_data.get('c', 'N/A')}. "
-            "Fibonacci retracement and technical indicators suggest potential entry levels "
-            "and resistance points. RSI and MACD indicate trend momentum."
-        )
-
-        return {
-            "valuation": valuation,
-            "metrics": price_data,
-            "price_data": price_data,
-            "analysis_text": analysis_text
-        }
-    except:
-        return {}
+        return None
+    now = int(time.time())
+    past = now - 365*24*60*60  # 1 year
+    url = f"https://finnhub.io/api/v1/stock/candle?symbol={ticker}&resolution=D&from={past}&to={now}&token={FINNHUB_API_KEY}"
+    r = requests.get(url).json()
+    if r.get("s") != "ok":
+        return None
+    return {"price_data": r}
