@@ -1,12 +1,18 @@
-
+import os
 import requests
+from datetime import datetime, timedelta
 
-API_KEY = "d2j6pb1r01qqoaj9t40gd2j6pb1r01qqoaj9t410"
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
-def get_stock_news(ticker):
+def fetch_news(ticker):
+    if not FINNHUB_API_KEY:
+        return []
+
     try:
-        url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from=2025-07-01&to=2025-08-01&token={API_KEY}"
-        res = requests.get(url)
-        return res.json() if res.status_code == 200 else []
+        today = datetime.today().strftime('%Y-%m-%d')
+        past = (datetime.today() - timedelta(days=30)).strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={past}&to={today}&token={FINNHUB_API_KEY}"
+        r = requests.get(url)
+        return r.json()[:5] if r.status_code == 200 else []
     except:
         return []
