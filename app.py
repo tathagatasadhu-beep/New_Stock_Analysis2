@@ -1,49 +1,47 @@
 import streamlit as st
-import sys, os
-
-# Ensure utils folder is in Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from utils.data_fetch import fetch_screener_data, fetch_analysis_data
-from utils.news import get_stock_news
-from utils.charts import plot_fibonacci_chart
+from utils.news import fetch_news
+from utils.charts import generate_fib_chart, generate_technical_chart
 
 st.set_page_config(page_title="Stock Analysis Suite", layout="wide")
-st.title("Stock Analysis Suite")
 
+# Tabs for single-page navigation
 tab1, tab2 = st.tabs(["Screener", "Analysis"])
 
-# --- Screener Tab ---
 with tab1:
-    st.subheader("Stock Screener - Live (S&P 500)")
+    st.header("Stock Screener")
+    st.write("Discover undervalued S&P 500 stocks with live metrics and news.")
+
     data = fetch_screener_data()
-    if data is not None:
-        st.dataframe(data)
-        selected_stock = st.selectbox("Select a stock for news", data['Ticker'])
-        if selected_stock:
-            st.subheader(f"Latest News for {selected_stock}")
-            news_items = get_stock_news(selected_stock)
-            if news_items:
-                for n in news_items:
-                    st.write(f"**{n['headline']}** - {n['datetime']}")
-                    st.write(n['summary'])
-                    st.markdown("---")
-            else:
-                st.write("No news available.")
+    if not data.empty:
+        st.dataframe(data, use_container_width=True)
     else:
-        st.write("No data available.")
+        st.warning("No data available.")
 
-# --- Analysis Tab ---
+    st.subheader("Market News")
+    news_items = fetch_news("AAPL")  # Default news feed
+    for item in news_items:
+        st.write(f"**{item['headline']}** - {item['source']} ({item['datetime']})")
+        st.write(item['summary'])
+        st.write("---")
+
 with tab2:
-    st.subheader("Stock Analysis")
-    ticker = st.text_input("Enter a Stock Ticker (e.g., AAPL)", "AAPL")
+    st.header("Stock Analysis")
+    ticker = st.text_input("Enter Ticker Symbol (e.g., AAPL)", "AAPL")
 
-    if ticker:
-        analysis = fetch_analysis_data(ticker)
-        if analysis:
-            st.write(analysis)
-            st.subheader("Fibonacci Retracement")
-            fib_chart = plot_fibonacci_chart(ticker)
-            st.pyplot(fib_chart)
+    if st.button("Run Analysis"):
+        analysis_data = fetch_analysis_data(ticker)
+
+        if analysis_data:
+            st.subheader("Valuation & Metrics")
+            st.write(analysis_data["valuation"])
+            st.write(analysis_data["metrics"])
+
+            st.subheader("Technical Charts")
+            st.plotly_chart(generate_fib_chart(analysis_data["price_data"]), use_container_width=True)
+            st.plotly_chart(generate_technical_chart(analysis_data["price_data"]), use_container_width=True)
+
+            st.subheader("Plain English Analysis")
+            st.write(analysis_data["analysis_text"])
         else:
-            st.write("Unable to retrieve analysis data.")
+            st.error("No analysis data found.")
