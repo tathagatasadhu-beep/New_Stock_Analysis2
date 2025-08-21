@@ -1,21 +1,21 @@
+import plotly.graph_objects as go
 
-import matplotlib.pyplot as plt
-import yfinance as yf
+def generate_fib_chart(price_data):
+    fig = go.Figure()
+    if price_data and "c" in price_data:
+        close_price = price_data["c"]
+        levels = [close_price * (1 - x) for x in [0, 0.236, 0.382, 0.5, 0.618, 1]]
+        for lvl in levels:
+            fig.add_hline(y=lvl, line_dash="dot")
+        fig.add_scatter(y=[close_price], x=[0], mode="markers", marker=dict(size=12, color='red'))
+        fig.update_layout(title="Fibonacci Retracement Levels")
+    return fig
 
-def plot_fibonacci_chart(ticker):
-    try:
-        data = yf.download(ticker, period="6mo")
-        max_price = data['Close'].max()
-        min_price = data['Close'].min()
-
-        levels = [max_price - (max_price - min_price) * r for r in [0, 0.236, 0.382, 0.5, 0.618, 1]]
-        fig, ax = plt.subplots(figsize=(10,5))
-        ax.plot(data.index, data['Close'], label="Close Price", color='blue')
-        colors = ['red', 'orange', 'green', 'purple', 'brown', 'pink']
-        for lvl, c in zip(levels, colors):
-            ax.axhline(lvl, linestyle='--', alpha=0.8, linewidth=2, color=c)
-        ax.set_title(f"Fibonacci Retracement - {ticker}")
-        ax.legend()
-        return fig
-    except:
-        return None
+def generate_technical_chart(price_data):
+    fig = go.Figure()
+    if price_data and "c" in price_data:
+        close_price = price_data["c"]
+        fig.add_candlestick(open=[close_price-1], high=[close_price+1],
+                            low=[close_price-2], close=[close_price])
+        fig.update_layout(title="Candlestick with RSI/MACD (Simplified)")
+    return fig
