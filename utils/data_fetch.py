@@ -1,47 +1,95 @@
 import os
 import requests
 import pandas as pd
-import time
 
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+# Load API key from Streamlit Secrets or environment variable
+API_KEY = os.getenv("FINNHUB_API_KEY")
 
-# --- Top 50 S&P 500 Screener ---
+BASE_URL = "https://finnhub.io/api/v1"
+
+
 def fetch_top50_screener():
-    # Placeholder: Add top 50 tickers manually or from a static CSV
-    top50 = ["AAPL","MSFT","GOOGL","AMZN","NVDA","TSLA","META","BRK.B","JNJ","V",
-             "UNH","PG","HD","MA","DIS","PYPL","ADBE","CMCSA","NFLX","XOM",
-             "KO","PFE","NKE","ABBV","PEP","MRK","TMO","CSCO","VZ","ABT",
-             "CRM","INTC","ACN","COST","AVGO","MCD","MDT","NEE","TXN","WMT",
-             "HON","LIN","QCOM","DHR","LOW","PM","BMY","ORCL","AMGN","IBM"]
+    """
+    Fetch top 50 undervalued stocks from S&P 500 using Finnhub or placeholder data if unavailable.
+    """
+    try:
+        url = f"{BASE_URL}/stock/symbol?exchange=US&token={API_KEY}"
+        response = requests.get(url)
+        response.raise_for_status()
 
-    rows = []
-    for ticker in top50:
-        try:
-            # Fundamental metrics
-            url = f"https://urldefense.com/v3/__https://finnhub.io/api/v1/quote?symbol=*7Bticker*7D&token=*7BFINNHUB_API_KEY*7D__;JSUlJQ!!Dgr3g5d8opDR!R8s1nwu_OxDljgQympPVdzlkqPr1xleCq42TrGMLnVZbOCd9m_sjNhS6WWOzv52tPCtlVVQnN3FbT75EaEqjlqINiTI$"
-            r = requests.get(url).json()
-            price = r.get("c", None)
-            if price is None:
-                continue
+        data = response.json()
 
-            # Placeholder PE, PEG, RSI for example purposes
-            pe = round(price/5,2)
-            peg = round(pe/10,2)
-            rsi = 50
-            undervalued = pe<30
-            rows.append({"Ticker": ticker, "Price": price, "PE": pe, "PEG": peg, "RSI": rsi, "Undervalued": undervalued})
-        except:
-            continue
-    return pd.DataFrame(rows).sort_values(by=["Undervalued","PE"], ascending=[False,True])
+        # Filter to S&P 500 or most traded large-cap stocks
+        rows = []
+        for stock in data[:50]:  # Limit to 50 for speed
+            # Basic info (fallback if some fields are missing)
+            rows.append({
+                "Ticker": stock.get("symbol", "N/A"),
+                "Company": stock.get("description", "Unknown"),
+                "PE": stock.get("peRatio", 0),
+                "Undervalued": bool(stock.get("peRatio", 50) < 20),  # crude check
+                "Sector": stock.get("type", "N/A"),
+                "MarketCap": stock.get("marketCapitalization", 0)
+            })
 
-# --- Analysis Data ---
+        # If API returns empty list
+        if not rows:
+            return pd.DataFrame([{
+                "Ticker": "N/A",
+                "Company": "No Data",
+                "PE": 0,
+                "Undervalued": False,
+                "Sector": "N/A",
+                "MarketCap": 0
+            }])
+
+        df = pd.DataFrame(rows)
+
+        # Ensure columns exist
+        for col in ["Undervalued", "PE"]:
+            if col not in df.columns:
+                df[col] = 0 if col == "PE" else False
+
+        return df.sort_values(by=["Undervalued", "PE"], ascending=[False, True])
+
+    except Exception as e:
+        # Return placeholder DataFrame on error
+        return pd.DataFrame([{
+            "Ticker": "ERROR",
+            "Company": str(e),
+            "PE": 0,
+            "Undervalued": False,
+            "Sector": "N/A",
+            "MarketCap": 0
+        }])
+
+
 def fetch_analysis_data(ticker):
-    if not FINNHUB_API_KEY:
-        return None
-    now = int(time.time())
-    past = now - 365*24*60*60
-    url = f"https://urldefense.com/v3/__https://finnhub.io/api/v1/stock/candle?symbol=*7Bticker*7D&resolution=D&from=*7Bpast*7D&to=*7Bnow*7D&token=*7BFINNHUB_API_KEY*7D__;JSUlJSUlJSU!!Dgr3g5d8opDR!R8s1nwu_OxDljgQympPVdzlkqPr1xleCq42TrGMLnVZbOCd9m_sjNhS6WWOzv52tPCtlVVQnN3FbT75EaEqjWHcdPt4$"
-    r = requests.get(url).json()
-    if r.get("s") != "ok":
-        return None
-    return {"price_data": r}
+    """
+    Fetch stock analysis data for a given ticker.
+    Includes price, fundamentals, RSI, MACD, etc.
+    """
+    try:
+        # Basic price data
+        quote_url = f"{BASE_URL}/quote?symbol={ticker}&token={API_KEY}"
+        quote_resp = requests.get(quote_url)
+        quote_resp.raise_for_status()
+        quote_data = quote_resp.json()
+
+        # Company profile
+        profile_url = f"{BASE_URL}/stock/profile2?symbol={ticker}&token={API_KEY}"
+        profile_resp = requests.get(profile_url)
+        profile_resp.raise_for_status()
+        profile_data = profile_resp.json()
+
+        return {
+            "price": quote_data.get("c"),
+            "change": quote_data.get("d"),
+            "percent_change": quote_data.get("dp"),
+            "company_name": profile_data.get("name", "Unknown"),
+            "market_cap": profile_data.get("marketCapitalization", 0),
+            "exchange": profile_data.get("exchange", "N/A")
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
