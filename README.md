@@ -1,7 +1,6 @@
-# Stock Analysis Suite
+# Stock Analysis Suite (Streamlit)
 
 ## Setup
-```bash
-pip install -r requirements.txt
-export FINNHUB_API_KEY="d2j6pb1r01qqoaj9t40gd2j6pb1r01qqoaj9t410"
-streamlit run app.py
+1. Install deps
+   ```bash
+   pip install -r requirements.txt
