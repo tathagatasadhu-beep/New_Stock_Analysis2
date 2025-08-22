@@ -1,61 +1,54 @@
 import streamlit as st
-from utils.data_fetch import fetch_top50_screener, fetch_analysis_data
-from utils.charts import plot_candlestick, plot_fibonacci, plot_rsi_macd
-from utils.valuation import dcf_valuation
-from utils.news import fetch_news
+from utils.data_fetch import fetch_top50_screener, fetch_analysis_data, fetch_company_news
+from utils.charts import plot_candlestick, plot_rsi_macd_fib
 
 st.set_page_config(page_title="Stock Analysis Suite", layout="wide")
-tab1, tab2 = st.tabs(["Screener", "Analysis"])
 
-# ----------------- Screener ----------------- #
+st.title("Stock Analysis Suite")
+
+tab1, tab2 = st.tabs(["📊 Screener", "🔍 Analysis"])
+
+# ------------------- SCREENER TAB -------------------
 with tab1:
-    st.header("Top 50 S&P 500 Stocks Screener")
-    st.write("Ranked by undervaluation, PE, PEG, RSI")
-
-    df = fetch_top50_screener()
-    st.dataframe(df, use_container_width=True)
-
-    st.subheader("Market News (AAPL default)")
-    news_items = fetch_news("AAPL")
-    if news_items:
-        for n in news_items:
-            st.markdown(f"- [{n['headline']}]({n['url']})")
-    else:
-        st.info("No news available. Check your API key.")
-
-# ----------------- Analysis ----------------- #
-with tab2:
-    st.header("Detailed Stock Analysis")
-    ticker = st.text_input("Enter Ticker Symbol", "AAPL")
-    discount_rate = st.number_input("Discount Rate (%)", 10)
-    growth_rate = st.number_input("Growth Rate (%)", 5)
-    years = st.number_input("Projection Years", 5)
-
-    if st.button("Run Analysis"):
-        if not ticker:
-            st.error("Please enter a ticker symbol.")
+    st.subheader("Top Undervalued S&P 500 Stocks")
+    try:
+        df = fetch_top50_screener()
+        if df is not None and not df.empty:
+            st.dataframe(df)
         else:
+            st.warning("No screener data available. Check API key or endpoint.")
+    except Exception as e:
+        st.error(f"Screener Error: {e}")
+
+    st.subheader("Market News")
+    news = fetch_company_news("AAPL")
+    if news:
+        for n in news[:5]:
+            st.write(f"**{n.get('headline', 'No headline')}**")
+            st.caption(n.get('summary', ''))
+    else:
+        st.info("No news available. Check your API key or try again later.")
+
+# ------------------- ANALYSIS TAB -------------------
+with tab2:
+    st.subheader("Stock Technical & Fundamental Analysis")
+
+    ticker = st.text_input("Enter Ticker Symbol:", "AAPL").upper()
+    if st.button("Run Analysis"):
+        try:
             data = fetch_analysis_data(ticker)
-            if data:
-                st.subheader("Candlestick Chart + Support/Resistance")
-                plot_candlestick(data["price_data"])
 
-                st.subheader("Fibonacci Retracement")
-                plot_fibonacci(data["price_data"])
-
-                st.subheader("RSI + MACD Indicators")
-                plot_rsi_macd(data["price_data"])
-
-                st.subheader("DCF Valuation")
-                intrinsic_value = dcf_valuation(data["price_data"], discount_rate, growth_rate, years)
-                st.success(f"Intrinsic Value: ${intrinsic_value:.2f}")
-
-                st.subheader("Latest Company News")
-                news_items = fetch_news(ticker)
-                if news_items:
-                    for n in news_items:
-                        st.markdown(f"- [{n['headline']}]({n['url']})")
-                else:
-                    st.info("No news available for this ticker.")
+            if "price_data" not in data or data["price_data"] is None:
+                st.error("Price data unavailable. Check API key or ticker.")
             else:
-                st.error("Failed to fetch data for this ticker. Check API key or ticker.")
+                st.plotly_chart(plot_candlestick(data["price_data"]), use_container_width=True)
+                st.plotly_chart(plot_rsi_macd_fib(data["price_data"]), use_container_width=True)
+
+            if "valuation" in data:
+                st.subheader("Valuation (DCF Approximation)")
+                st.json(data["valuation"])
+            else:
+                st.info("No valuation data available.")
+
+        except Exception as e:
+            st.error(f"Analysis Error: {e}")
