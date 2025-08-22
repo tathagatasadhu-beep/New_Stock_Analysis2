@@ -1,48 +1,55 @@
-import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-def plot_candlestick(data):
-    df = pd.DataFrame({
-        "Open": data["o"],
-        "High": data["h"],
-        "Low": data["l"],
-        "Close": data["c"]
-    }, index=pd.to_datetime(data["t"], unit='s'))
-    fig = go.Figure(data=[go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close']
-    )])
-    st.plotly_chart(fig, use_container_width=True)
+def plot_candlestick(df):
+    """Generates candlestick chart"""
+    fig = go.Figure(
+        data=[go.Candlestick(
+            x=df['Date'],
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close']
+        )]
+    )
+    fig.update_layout(
+        title="Candlestick Chart",
+        xaxis_title="Date",
+        yaxis_title="Price",
+        xaxis_rangeslider_visible=False,
+        template="plotly_dark",
+        height=500
+    )
+    return fig
 
-def plot_fibonacci(data):
-    closes = data["c"]
-    high, low = max(closes), min(closes)
-    levels = [high - (high - low) * r for r in [0.236,0.382,0.5,0.618,0.786]]
+
+def plot_rsi_macd_fib(df):
+    """Placeholder RSI + MACD + Fibonacci Retracement chart"""
     fig = go.Figure()
-    fig.add_scatter(y=closes, mode='lines', name='Close Price')
+
+    # RSI (Mock)
+    df['RSI'] = 50  # Placeholder constant value
+
+    fig.add_trace(go.Scatter(
+        x=df['Date'], y=df['RSI'],
+        name='RSI',
+        line=dict(color='yellow')
+    ))
+
+    # Fibonacci Retracement (Mock)
+    high = df['High'].max()
+    low = df['Low'].min()
+    levels = [0.236, 0.382, 0.5, 0.618, 0.786]
     for lvl in levels:
-        fig.add_hline(y=lvl, line_dash="dot")
-    st.plotly_chart(fig, use_container_width=True)
+        value = high - (high - low) * lvl
+        fig.add_hline(y=value, line_dash="dash", annotation_text=f"Fib {lvl*100:.1f}%")
 
-def plot_rsi_macd(data):
-    closes = pd.Series(data["c"])
-    # RSI
-    delta = closes.diff()
-    gain = delta.where(delta>0,0)
-    loss = -delta.where(delta<0,0)
-    avg_gain = gain.rolling(14).mean()
-    avg_loss = loss.rolling(14).mean()
-    rs = avg_gain/avg_loss
-    rsi = 100 - (100/(1+rs))
-    # MACD
-    exp1 = closes.ewm(span=12, adjust=False).mean()
-    exp2 = closes.ewm(span=26, adjust=False).mean()
-    macd = exp1 - exp2
-    fig = go.Figure()
-    fig.add_scatter(y=rsi, mode='lines', name='RSI')
-    fig.add_scatter(y=macd, mode='lines', name='MACD')
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        title="RSI + Fibonacci Levels (Demo)",
+        xaxis_title="Date",
+        yaxis_title="Indicator Value",
+        template="plotly_dark",
+        height=500
+    )
+
+    return fig
