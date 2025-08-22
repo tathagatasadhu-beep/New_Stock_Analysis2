@@ -1,95 +1,72 @@
 import os
 import requests
 import pandas as pd
+from datetime import datetime, timedelta
 
-# Load API key from Streamlit Secrets or environment variable
-API_KEY = os.getenv("FINNHUB_API_KEY")
+API_KEY = os.getenv("FINNHUB_API_KEY")  # set in Streamlit Secrets or Env
 
 BASE_URL = "https://finnhub.io/api/v1"
 
-
 def fetch_top50_screener():
-    """
-    Fetch top 50 undervalued stocks from S&P 500 using Finnhub or placeholder data if unavailable.
-    """
+    """Fetches a sample screener list from Finnhub"""
     try:
         url = f"{BASE_URL}/stock/symbol?exchange=US&token={API_KEY}"
-        response = requests.get(url)
-        response.raise_for_status()
+        resp = requests.get(url)
+        if resp.status_code != 200:
+            return pd.DataFrame()
+        data = resp.json()
 
-        data = response.json()
+        # Dummy scoring - filter large cap and random sample
+        df = pd.DataFrame(data)
+        if "symbol" not in df:
+            return pd.DataFrame()
+        df["PE"] = 15  # mock values for now
+        df["Undervalued"] = True
+        return df[["symbol", "description", "PE", "Undervalued"]].head(50)
 
-        # Filter to S&P 500 or most traded large-cap stocks
-        rows = []
-        for stock in data[:50]:  # Limit to 50 for speed
-            # Basic info (fallback if some fields are missing)
-            rows.append({
-                "Ticker": stock.get("symbol", "N/A"),
-                "Company": stock.get("description", "Unknown"),
-                "PE": stock.get("peRatio", 0),
-                "Undervalued": bool(stock.get("peRatio", 50) < 20),  # crude check
-                "Sector": stock.get("type", "N/A"),
-                "MarketCap": stock.get("marketCapitalization", 0)
-            })
+    except Exception:
+        return pd.DataFrame()
 
-        # If API returns empty list
-        if not rows:
-            return pd.DataFrame([{
-                "Ticker": "N/A",
-                "Company": "No Data",
-                "PE": 0,
-                "Undervalued": False,
-                "Sector": "N/A",
-                "MarketCap": 0
-            }])
-
-        df = pd.DataFrame(rows)
-
-        # Ensure columns exist
-        for col in ["Undervalued", "PE"]:
-            if col not in df.columns:
-                df[col] = 0 if col == "PE" else False
-
-        return df.sort_values(by=["Undervalued", "PE"], ascending=[False, True])
-
-    except Exception as e:
-        # Return placeholder DataFrame on error
-        return pd.DataFrame([{
-            "Ticker": "ERROR",
-            "Company": str(e),
-            "PE": 0,
-            "Undervalued": False,
-            "Sector": "N/A",
-            "MarketCap": 0
-        }])
-
-
-def fetch_analysis_data(ticker):
-    """
-    Fetch stock analysis data for a given ticker.
-    Includes price, fundamentals, RSI, MACD, etc.
-    """
+def fetch_analysis_data(symbol):
+    """Fetch historical prices + basic valuation"""
     try:
-        # Basic price data
-        quote_url = f"{BASE_URL}/quote?symbol={ticker}&token={API_KEY}"
-        quote_resp = requests.get(quote_url)
-        quote_resp.raise_for_status()
-        quote_data = quote_resp.json()
+        end = int(datetime.now().timestamp())
+        start = int((datetime.now() - timedelta(days=180)).timestamp())
+        url = f"{BASE_URL}/stock/candle?symbol={symbol}&resolution=D&from={start}&to={end}&token={API_KEY}"
+        resp = requests.get(url)
+        if resp.status_code != 200:
+            return {}
 
-        # Company profile
-        profile_url = f"{BASE_URL}/stock/profile2?symbol={ticker}&token={API_KEY}"
-        profile_resp = requests.get(profile_url)
-        profile_resp.raise_for_status()
-        profile_data = profile_resp.json()
+        candles = resp.json()
+        if candles.get("s") != "ok":
+            return {}
+
+        df = pd.DataFrame({
+            "Date": pd.to_datetime(candles["t"], unit="s"),
+            "Open": candles["o"],
+            "High": candles["h"],
+            "Low": candles["l"],
+            "Close": candles["c"],
+            "Volume": candles["v"]
+        })
 
         return {
-            "price": quote_data.get("c"),
-            "change": quote_data.get("d"),
-            "percent_change": quote_data.get("dp"),
-            "company_name": profile_data.get("name", "Unknown"),
-            "market_cap": profile_data.get("marketCapitalization", 0),
-            "exchange": profile_data.get("exchange", "N/A")
+            "price_data": df,
+            "valuation": {"DCF": 150, "Current Price": df["Close"].iloc[-1]}  # Mock valuation
         }
 
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {}
+
+def fetch_company_news(symbol):
+    """Fetches company news from Finnhub"""
+    try:
+        today = datetime.now().date()
+        start_date = today - timedelta(days=30)
+        url = f"{BASE_URL}/company-news?symbol={symbol}&from={start_date}&to={today}&token={API_KEY}"
+        resp = requests.get(url)
+        if resp.status_code == 200:
+            return resp.json()
+        return []
+    except Exception:
+        return []
